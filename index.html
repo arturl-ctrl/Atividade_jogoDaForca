@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Jogo da Forca</title>
+    <style>
+        /* Faz a forca tombar para a esquerda */
+        #forca {
+            transform-origin: 60px 230px;
+            transition: transform 0.8s ease-in, opacity 0.8s ease-in;
+        }
+        .forca-caindo {
+            transform: rotate(-85deg);
+            opacity: 0.3;
+        }
+
+        /* Faz a coroa descer até a cabeça do boneco */
+        @keyframes descerCoroa {
+            0% { transform: translateY(-60px); opacity: 0; }
+            100% { transform: translateY(0px); opacity: 1; }
+        }
+        .coroa-animada {
+            animation: descerCoroa 1s ease-out forwards;
+        }
+
+        /* Animação da aura dourada pulsando (vitória perfeita) */
+        @keyframes pulsarAura {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.9; }
+            100% { opacity: 0.4; }
+        }
+        .aura-animada {
+            animation: pulsarAura 1.5s infinite ease-in-out;
+        }
+
+        /* Animação da lágrima escorrendo (vitória faltando membros) */
+        @keyframes escorrerLagrima {
+            0% { transform: translateY(0px); opacity: 1; }
+            100% { transform: translateY(15px); opacity: 0; }
+        }
+        .lagrima-animada {
+            animation: escorrerLagrima 1.5s infinite ease-in;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="boneco">
+        <svg height="250" width="200">
+            <!-- Aura dourada (aparece só se vencer com 6 vidas) -->
+            <ellipse id="aura" cx="140" cy="120" rx="45" ry="85" fill="#fff3a1" stroke="#ffd700" stroke-width="3" style="display: none;" />
+
+            <!-- Estrutura da Forca -->
+            <g id="forca">
+                <line x1="20" y1="230" x2="100" y2="230" stroke="black" stroke-width="4" />
+                <line x1="60" y1="20" x2="60" y2="230" stroke="black" stroke-width="4" />
+                <line x1="60" y1="20" x2="140" y2="20" stroke="black" stroke-width="4" />
+                <line x1="140" y1="20" x2="140" y2="50" stroke="black" stroke-width="4" />
+            </g>
+
+            <!-- Partes do Boneco (somem uma a uma) -->
+            <circle id="parte-1" cx="140" cy="70" r="20" stroke="black" stroke-width="4" fill="transparent" />
+            <line id="parte-2" x1="140" y1="90" x2="140" y2="150" stroke="black" stroke-width="4" />
+            <line id="parte-3" x1="140" y1="110" x2="115" y2="135" stroke="black" stroke-width="4" />
+            <line id="parte-4" x1="140" y1="110" x2="165" y2="135" stroke="black" stroke-width="4" />
+            <line id="parte-5" x1="140" y1="150" x2="115" y2="185" stroke="black" stroke-width="4" />
+            <line id="parte-6" x1="140" y1="150" x2="165" y2="185" stroke="black" stroke-width="4" />
+
+            <!-- Cena de Vitória: Coroa e Rostos -->
+            <g id="cena-vitoria" style="display: none;">
+                <!-- Coroa dourada -->
+                <polygon id="coroa" points="122,48 122,30 131,40 140,26 149,40 158,30 158,48" fill="#ffd700" stroke="black" stroke-width="2" />
+                
+                <!-- Olhos -->
+                <circle cx="133" cy="66" r="2" fill="black" />
+                <circle cx="147" cy="66" r="2" fill="black" />
+                
+                <!-- Sorriso feliz (vitória perfeita) -->
+                <path id="sorriso-perfeito" d="M 132 75 Q 140 83 148 75" stroke="black" stroke-width="2" fill="transparent" style="display: none;" />
+                
+                <!-- Sorriso aliviado + lágrima (vitória com membros faltando) -->
+                <g id="rosto-sofrido" style="display: none;">
+                    <path d="M 133 78 Q 140 74 147 78" stroke="black" stroke-width="2" fill="transparent" />
+                    <path id="lagrima" d="M 149 69 Q 152 74 149 76 Q 146 74 149 69" fill="#00bfff" />
+                </g>
+            </g>
+
+            <!-- Expressão de derrota (aparece quando vidas = 0) -->
+            <g id="rosto-derrota" style="display: none;">
+                <circle cx="140" cy="70" r="20" stroke="black" stroke-width="4" fill="transparent" />
+                <line x1="131" y1="63" x2="136" y2="68" stroke="black" stroke-width="2" />
+                <line x1="136" y1="63" x2="131" y2="68" stroke="black" stroke-width="2" />
+                <line x1="144" y1="63" x2="149" y2="68" stroke="black" stroke-width="2" />
+                <line x1="149" y1="63" x2="144" y2="68" stroke="black" stroke-width="2" />
+                <line x1="133" y1="78" x2="147" y2="78" stroke="black" stroke-width="2" />
+            </g>
+        </svg>
+    </div>
+
+    <h2 id="palavra"></h2>
+    
+    <input type="text" id="letra" maxlength="1">
+    <button onclick="verificar()">Tentar</button>
+    
+    <h3 id="mensagem"></h3>
+
+    <script>
+        const nomes = [
+            "GABRIEL", "LEVY", "PEDRO", "DAVI", "RYAN", 
+            "MARIA", "ARTUR", "DANIEL", "ROBERTO", "SGAMATO", 
+            "THIAGO", "GABRIELA", "YASMIN", "THAIS", "CAMARGO"
+        ];
+
+        const palavra = nomes[Math.floor(Math.random() * nomes.length)];
+        let letrasDescobertas = Array(palavra.length).fill("_");
+
+        let vidas = 6;
+
+        function atualizarTela() {
+            for (let i = 1; i <= 6; i++) {
+                const parte = document.getElementById("parte-" + i);
+                if (i <= vidas) {
+                    parte.style.display = "block";
+                } else {
+                    parte.style.display = "none";
+                }
+            }
+
+            if (vidas <= 0) {
+                document.getElementById("rosto-derrota").style.display = "block";
+            }
+
+            document.getElementById("palavra").innerText = letrasDescobertas.join(" ");
+        }
+
+        function verificar() {
+            if (vidas <= 0 || !letrasDescobertas.includes("_")) return;
+
+            const input = document.getElementById("letra");
+            const letra = input.value.toUpperCase();
+            input.value = "";
+
+            if (!letra) return;
+
+            if (palavra.includes(letra)) {
+                for (let i = 0; i < palavra.length; i++) {
+                    if (palavra[i] === letra) {
+                        letrasDescobertas[i] = letra;
+                    }
+                }
+            } else {
+                vidas--;
+            }
+
+            atualizarTela();
+
+            if (!letrasDescobertas.includes("_")) {
+                document.getElementById("mensagem").innerText = "Vitória! Você acertou o nome: " + palavra;
+                
+                document.getElementById("forca").classList.add("forca-caindo");
+                document.getElementById("cena-vitoria").style.display = "block";
+                document.getElementById("coroa").classList.add("coroa-animada");
+
+                if (vidas === 6) {
+                    const aura = document.getElementById("aura");
+                    aura.style.display = "block";
+                    aura.classList.add("aura-animada");
+                    document.getElementById("sorriso-perfeito").style.display = "block";
+                } else {
+                    document.getElementById("rosto-sofrido").style.display = "block";
+                    document.getElementById("lagrima").classList.add("lagrima-animada");
+                }
+
+            } else if (vidas <= 0) {
+                document.getElementById("mensagem").innerText = "Derrota! O boneco sumiu inteiro. O nome era: " + palavra;
+            }
+        }
+
+        atualizarTela();
+    </script>
+
+</body>
+</html>
